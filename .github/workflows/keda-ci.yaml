@@ -1,0 +1,63 @@
+name: KEDA E2E Scaling Test
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+    branches: [ master, main ]
+
+jobs:
+  keda-integration-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Create K8s Cluster (KinD)
+        uses: helm/kind-action@v1.4.0
+        with:
+          cluster_name: keda-test-cluster
+
+      - name: Install KEDA Custom Resources
+        run: |
+          helm repo add kedacore https://kedacore.github.io/charts
+          helm repo update
+          helm install keda kedacore/keda --namespace keda --create-namespace --wait
+
+      - name: Build and Load Application Image
+        run: |
+          docker build -t worker-app:latest ./app -f ./app/Dockerfile
+          kind load docker-image worker-app:latest --name keda-test-cluster
+
+      - name: Deploy Message Queue (Redis)
+        run: |
+          kubectl apply -f ./k8s/redis.yaml
+          kubectl rollout status deployment/redis-master --timeout=120s
+
+      - name: Deploy KEDA Worker & ScaledObject
+        run: |
+          kubectl apply -f ./k8s/worker.yaml
+          kubectl apply -f ./k8s/scaledobject.yaml
+          sleep 15
+          echo "=== Initial Pod Status (Should be 0 workers) ==="
+          kubectl get pods
+
+      - name: Trigger Attack (Simulate Traffic Spike)
+        run: |
+          kubectl apply -f ./k8s/producer.yaml
+          kubectl rollout status deployment/redis-producer --timeout=60s
+          
+          echo "Waiting 30 seconds for KEDA to detect traffic and scale up..."
+          sleep 30
+          
+          echo "=== Pod Status after Traffic Spike ==="
+          kubectl get pods
+          
+          WORKER_COUNT=$(kubectl get deployment keda-worker -o=jsonpath='{.status.readyReplicas}')
+          if [ -z "$WORKER_COUNT" ] || [ "$WORKER_COUNT" -eq 0 ]; then
+            echo "❌ KEDA Scaling Failed: Workers did not scale up from 0."
+            kubectl describe scaledobject redis-scaledobject
+            exit 1
+          else
+            echo "✅ KEDA Scaling Succeeded! Currently running $WORKER_COUNT workers."
+          fi
