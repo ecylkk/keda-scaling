@@ -26,13 +26,13 @@ jobs:
 
       - name: Build and Load Application Image
         run: |
-          docker build -t worker-app:latest ./app -f ./app/Dockerfile
-          kind load docker-image worker-app:latest --name keda-test-cluster
+          docker build -t keda-app:latest ./app -f ./app/Dockerfile
+          kind load docker-image keda-app:latest --name keda-test-cluster
 
       - name: Deploy Message Queue (Redis)
         run: |
           kubectl apply -f ./k8s/redis.yaml
-          kubectl rollout status deployment/redis-master --timeout=120s
+          kubectl rollout status deployment/redis --timeout=120s
 
       - name: Deploy KEDA Worker & ScaledObject
         run: |
@@ -45,7 +45,7 @@ jobs:
       - name: Trigger Attack (Simulate Traffic Spike)
         run: |
           kubectl apply -f ./k8s/producer.yaml
-          kubectl rollout status deployment/redis-producer --timeout=60s
+          kubectl rollout status deployment/producer --timeout=60s
           
           echo "Waiting 30 seconds for KEDA to detect traffic and scale up..."
           sleep 30
@@ -53,7 +53,7 @@ jobs:
           echo "=== Pod Status after Traffic Spike ==="
           kubectl get pods
           
-          WORKER_COUNT=$(kubectl get deployment keda-worker -o=jsonpath='{.status.readyReplicas}')
+          WORKER_COUNT=$(kubectl get deployment worker -o=jsonpath='{.status.readyReplicas}')
           if [ -z "$WORKER_COUNT" ] || [ "$WORKER_COUNT" -eq 0 ]; then
             echo "❌ KEDA Scaling Failed: Workers did not scale up from 0."
             kubectl describe scaledobject redis-scaledobject
