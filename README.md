@@ -17,7 +17,7 @@ Unlike standard HPA (Horizontal Pod Autoscaler) which reacts slowly to CPU/Memor
 graph LR
     A[Producer Pod] -->|LPUSH jobs| B[(Redis Queue)]
     B -->|Triggers| C[KEDA ScaledObject]
-    C -->|Scales up/down (0-10)| D[Worker Pods]
+    C -->|Scales up/down 0-10| D[Worker Pods]
     D -->|BRPOP jobs| B
 ```
 
