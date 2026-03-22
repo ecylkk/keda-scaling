@@ -1,0 +1,19 @@
+# KEDA ScaledObject - THE CORE of this project
+# This tells KEDA: scale the worker deployment based on Redis queue length
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: worker-scaler
+spec:
+  scaleTargetRef:
+    name: worker                    # Scale THIS deployment
+  minReplicaCount: 0                # Scale to ZERO when idle (cost saving!)
+  maxReplicaCount: 10               # Max 10 pods
+  pollingInterval: 5                # Check every 5 seconds
+  cooldownPeriod: 30                # Wait 30s before scaling down
+  triggers:
+    - type: redis
+      metadata:
+        address: redis.default.svc.cluster.local:6379
+        listName: order-queue       # Monitor THIS Redis list
+        listLength: "5"             # 1 pod per 5 items in queue

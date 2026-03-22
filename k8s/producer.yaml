@@ -1,0 +1,25 @@
+# Job Producer - pushes tasks into Redis queue
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: producer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: producer
+  template:
+    metadata:
+      labels:
+        app: producer
+    spec:
+      containers:
+        - name: producer
+          image: keda-app:latest
+          imagePullPolicy: Never
+          command: ["python", "producer.py"]
+          env:
+            - name: REDIS_DB_HOST
+              value: "redis"
+            - name: QUEUE_NAME
+              value: "order-queue"
